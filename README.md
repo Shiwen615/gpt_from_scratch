@@ -38,9 +38,19 @@ By default it trains on `input.txt` (Tiny Shakespeare), predicting the next char
 
 Edit [config.py](config.py) to change them. The GPU is used automatically when CUDA is available.
 
-## Usage
+## Environment Setup
 
-Requires Python 3 and PyTorch.
+### Using Conda
+
+```bash
+# Create the environment from environment.yml
+conda env create -f environment.yml
+
+# Activate the environment
+conda activate gpt
+```
+
+## Usage
 
 ```bash
 # Train: evaluates every 500 steps and saves the best weights to best.pt
