@@ -1,5 +1,7 @@
 # GPT from Scratch
 
+![generate --stdout demo](result.gif)
+
 A character-level GPT built by following Andrej Karpathy's video [**Let's build GPT: from scratch, in code, spelled out**](https://www.youtube.com/watch?v=kCc8FmEb1nY). The code from the video's notebook has been split into separate modules.
 
 The model is a decoder-only Transformer:
@@ -19,7 +21,7 @@ By default it trains on `input.txt` (Tiny Shakespeare), predicting the next char
 | --- | --- |
 | [config.py](config.py) | Paths, random seed, and all hyperparameters |
 | [data.py](data.py) | `CharDataset`: character encode/decode, train/val split, random batch sampling |
-| [model.py](model.py) | `Head`, `MultiHeadAttention`, `FeedForward`, `Block`, `BigramLanguageModel` (including `generate`) |
+| [model.py](model.py) | `Head`, `MultiHeadAttention`, `FeedForward`, `Block`, `BigramLanguageModel` (including `generate_stream`, which yields one token at a time, and `generate`, which collects them all) |
 | [train.py](train.py) | `estimate_loss` and the training loop; saves `best.pt` whenever validation loss improves |
 | [main.py](main.py) | Command-line entry point with `train` and `generate` modes |
 | `input.txt` | Training corpus |
@@ -57,7 +59,12 @@ conda activate gpt
 python main.py train
 
 # Generate: loads best.pt, starts from token 0, produces 10000 characters, writes them to more.txt
+# Characters are written and flushed one by one as they are sampled
 python main.py generate
+
+# Same, but stream the text to stdout instead of the file (progress info goes to stderr)
+python main.py generate --stdout
+python main.py generate --stdout > out.txt
 ```
 
 ## Mapping the Video to the Code
