@@ -4,17 +4,17 @@ import sys
 import torch
 
 import config
-from data import CharDataset
+from data import BPEDataset, CharDataset
 from model import BigramLanguageModel
 from train import train
 
 
-def run_train(model, dataset):
-    train(model, dataset)
+def run_train(model, dataset, checkpoint_path):
+    train(model, dataset, checkpoint_path)
 
 
-def run_generate(model, dataset, to_stdout=False):
-    model.load_state_dict(torch.load(config.checkpoint_path, map_location=config.device))
+def run_generate(model, dataset, checkpoint_path, to_stdout=False):
+    model.load_state_dict(torch.load(checkpoint_path, map_location=config.device))
     model.eval()
     context = torch.zeros((1, 1), dtype=torch.long, device=config.device)
     tokens = model.generate_stream(context, max_new_tokens=config.generate_tokens)
@@ -45,20 +45,27 @@ def main():
     parser.add_argument('mode', choices=['train', 'generate'])
     parser.add_argument('--stdout', action='store_true',
                         help='generate mode: print the text to stdout instead of writing config.output_path')
+    parser.add_argument('--tokenizer', choices=['char', 'bpe'], default='char',
+                        help='char: character-level; bpe: byte-level BPE using config.encoder_path')
     args = parser.parse_args()
 
     torch.manual_seed(config.seed)
 
-    dataset = CharDataset()
+    if args.tokenizer == 'bpe':
+        dataset = BPEDataset()
+        checkpoint_path = config.bpe_checkpoint_path
+    else:
+        dataset = CharDataset()
+        checkpoint_path = config.checkpoint_path
     # keep stdout clean for generated text when --stdout is used
     info_stream = sys.stderr if args.stdout else sys.stdout
     print(f"text length: {len(dataset.text)}, vocab size: {dataset.vocab_size}", file=info_stream)
 
     model = BigramLanguageModel(dataset.vocab_size).to(config.device)
     if args.mode == 'train':
-        run_train(model, dataset)
+        run_train(model, dataset, checkpoint_path)
     else:
-        run_generate(model, dataset, to_stdout=args.stdout)
+        run_generate(model, dataset, checkpoint_path, to_stdout=args.stdout)
 
 
 if __name__ == '__main__':

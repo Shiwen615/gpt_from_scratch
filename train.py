@@ -19,7 +19,7 @@ def estimate_loss(model, dataset):
     return out
 
 
-def train(model, dataset):
+def train(model, dataset, checkpoint_path=config.checkpoint_path):
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     best_val = float('inf')
     for step in range(config.max_iters):
@@ -28,7 +28,7 @@ def train(model, dataset):
             print(f"step {step}: train loss = {losses['train']:.4f}, val loss = {losses['val']:.4f}")
             if losses['val'] < best_val:
                 best_val = losses['val']
-                torch.save(model.state_dict(), config.checkpoint_path)
+                torch.save(model.state_dict(), checkpoint_path)
                 print(f"  saved best weights (val loss = {best_val:.4f})")
 
         xb, yb = dataset.get_batch('train')

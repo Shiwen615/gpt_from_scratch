@@ -2,7 +2,9 @@ import torch
 
 seed = 1337
 data_path = 'input.txt'
+encoder_path = 'tokenizer/encoder.json'
 checkpoint_path = 'best.pt'
+bpe_checkpoint_path = 'best_bpe.pt'
 output_path = 'more.txt'
 generate_tokens = 10000
 

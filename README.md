@@ -13,19 +13,25 @@ token embedding + position embedding
   → LayerNorm → Linear (logits over the vocabulary)
 ```
 
-By default it trains on `input.txt` (Tiny Shakespeare), predicting the next character at each position.
+By default it trains on `input.txt` (Tiny Shakespeare), predicting the next token at each position. Two tokenizers are available:
+
+- `char` (default): one character = one token.
+- `bpe`: byte-level BPE. Starts from 256 bytes and merges frequent pairs into new tokens (vocab size 512).
 
 ## Project Structure
 
 | File | Contents |
 | --- | --- |
 | [config.py](config.py) | Paths, random seed, and all hyperparameters |
-| [data.py](data.py) | `CharDataset`: character encode/decode, train/val split, random batch sampling |
+| [data.py](data.py) | `CharDataset` and `BPEDataset`: encode/decode, plus a shared train/val split and random batch sampling |
+| [tokenizer/tokenizer.py](tokenizer/tokenizer.py) | Learns BPE merges from a text file and writes `tokenizer/encoder.json` |
+| [tokenizer/tokenizer.ipynb](tokenizer/tokenizer.ipynb) | Notebook walkthrough of the BPE algorithm |
 | [model.py](model.py) | `Head`, `MultiHeadAttention`, `FeedForward`, `Block`, `BigramLanguageModel` (including `generate_stream`, which yields one token at a time, and `generate`, which collects them all) |
 | [train.py](train.py) | `estimate_loss` and the training loop; saves `best.pt` whenever validation loss improves |
-| [main.py](main.py) | Command-line entry point with `train` and `generate` modes |
+| [main.py](main.py) | Command-line entry point with `train` and `generate` modes, and a `--tokenizer` option |
 | `input.txt` | Training corpus |
-| `best.pt` | Model weights with the lowest validation loss |
+| `tokenizer/encoder.json` | The learned BPE merges (used by `BPEDataset`) |
+| `best.pt` / `best_bpe.pt` | Best weights (lowest validation loss) for the char / BPE model |
 | `more.txt` | Generated output |
 
 ## Default Hyperparameters
@@ -65,11 +71,26 @@ python main.py generate
 # Same, but stream the text to stdout instead of the file (progress info goes to stderr)
 python main.py generate --stdout
 python main.py generate --stdout > out.txt
+
+# Use the BPE tokenizer instead (weights go to best_bpe.pt)
+python main.py train --tokenizer bpe
+python main.py generate --tokenizer bpe
 ```
+
+Weights from different tokenizers are not interchangeable, so use the same `--tokenizer` for `train` and `generate`.
+
+### Retrain the BPE merges (optional)
+
+```bash
+python tokenizer/tokenizer.py input.txt   # rewrites tokenizer/encoder.json
+```
+
+The first BPE run encodes the whole corpus (slow) and caches the result in `tokenizer/encoder.json.ids.pt`; later runs reuse it.
 
 ## Mapping the Video to the Code
 
 - Character-level tokenizer, train/val split, `get_batch` → `data.py`
+- BPE tokenizer (from Karpathy's tokenizer lecture) → `tokenizer/tokenizer.py`, `BPEDataset`
 - Self-attention (Q/K/V, scaled dot-product, causal mask) → `Head`
 - Multi-head attention and projection → `MultiHeadAttention`
 - Feed-forward, residual connections, LayerNorm, dropout → `FeedForward` / `Block`
