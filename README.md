@@ -26,7 +26,7 @@ By default it trains on `input.txt` (Tiny Shakespeare), predicting the next toke
 | [data.py](data.py) | `CharDataset` and `BPEDataset`: encode/decode, plus a shared train/val split and random batch sampling |
 | [tokenizer/tokenizer.py](tokenizer/tokenizer.py) | Learns BPE merges from a text file and writes `tokenizer/encoder.json` |
 | [tokenizer/tokenizer.ipynb](tokenizer/tokenizer.ipynb) | Notebook walkthrough of the BPE algorithm |
-| [model.py](model.py) | `Head`, `MultiHeadAttention`, `FeedForward`, `Block`, `BigramLanguageModel` (including `generate_stream`, which yields one token at a time, and `generate`, which collects them all) |
+| [model.py](model.py) | `Head`, `MultiHeadAttention`, `FeedForward`, `Block`, `BigramLanguageModel` (including `generate_stream`, which yields one token at a time using a KV cache, and `generate`, which collects them all) |
 | [train.py](train.py) | `estimate_loss` and the training loop; saves `best.pt` whenever validation loss improves |
 | [main.py](main.py) | Command-line entry point with `train` and `generate` modes, and a `--tokenizer` option |
 | `input.txt` | Training corpus |
@@ -87,6 +87,25 @@ python tokenizer/tokenizer.py input.txt   # rewrites tokenizer/encoder.json
 
 The first BPE run encodes the whole corpus (slow) and caches the result in `tokenizer/encoder.json.ids.pt`; later runs reuse it.
 
+## KV Cache
+
+Without a cache, every generation step re-feeds the whole text into the model, recomputing the same keys and values again and again. But because of the causal mask, an old token's K and V never change. So `generate_stream` computes them once, stores them, and from then on only feeds the newest token:
+
+```
+step 1: feed the whole prompt      → store K, V of every token
+step 2: feed 1 new token           → append its K, V, attend over all stored K, V
+step 3: feed 1 new token           → ...
+```
+
+How it maps to the code:
+
+- `model.new_cache()` creates an empty cache: `cache[layer][head]` is a dict holding `k` and `v`.
+- `Head.forward` appends the new K, V to the cache, and slices the causal mask to match (`tril[S-T:S, :S]`, where `T` = new tokens, `S` = cached + new).
+- `BigramLanguageModel.forward` starts the position embedding after the cached length.
+- Training passes no cache, so it behaves exactly as before.
+
+Limitation: the position table only has `block_size` entries. When the cache is full it is cleared and rebuilt from the most recent `block_size // 2` tokens.
+
 ## Mapping the Video to the Code
 
 - Character-level tokenizer, train/val split, `get_batch` → `data.py`
@@ -94,6 +113,7 @@ The first BPE run encodes the whole corpus (slow) and caches the result in `toke
 - Self-attention (Q/K/V, scaled dot-product, causal mask) → `Head`
 - Multi-head attention and projection → `MultiHeadAttention`
 - Feed-forward, residual connections, LayerNorm, dropout → `FeedForward` / `Block`
+- KV cache (not in the video) → `cache` argument of `Head` / `forward`, used by `generate_stream`
 - Full model and autoregressive generation → `BigramLanguageModel` (the name is kept from the video, where the model grows out of a bigram model)
 
 ## References
